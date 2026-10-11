@@ -1,0 +1,17 @@
+[package]
+name = "xtask"
+description = "Repo automation: spec-check, toolchain-check, pin-check, and fetch-contracts. Run with `cargo xtask`."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+sha2 = { workspace = true }
+
+[lints]
+workspace = true

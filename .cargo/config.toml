@@ -1,0 +1,18 @@
+[alias]
+xtask = "run -q -p xtask --"
+
+[registries.crates-io]
+protocol = "sparse"
+
+[net]
+git-fetch-with-cli = true
+
+# Offline / vendored dependencies support (spec 0004):
+# Run `make vendor` (or `cargo vendor vendor/crates`) to populate `vendor/crates`,
+# then uncomment the replacement block below to build offline without network access:
+# [source.crates-io]
+# replace-with = "vendored-sources"
+#
+# [source.vendored-sources]
+# directory = "vendor/crates"
+

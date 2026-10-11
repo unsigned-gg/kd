@@ -1,0 +1,6 @@
+# Pinned estate contracts (spec 0004). Format:
+# <sha256> <40-hex-commit> <org/repo> <upstream-path> <local-path-under-.contracts>
+#
+# Run `cargo xtask fetch-contracts` (or `make fetch-contracts`) to fetch these files into .contracts/.
+# Example:
+# e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 0123456789abcdef0123456789abcdef01234567 cerebral-work/cortex crates/cortex-domain/src/lib.rs cortex/domain/lib.rs

@@ -1,0 +1,19 @@
+/target/
+/.tools/
+.dagr/
+.saga/*
+!.saga/flows/
+!.saga/flows/*.toml
+.env*
+.claude/settings.local.json
+*.cdx.json
+/dist/
+.contracts/
+
+# Agent custody store (local runs; never committed)
+.blackwall/
+.sbx/
+
+# Vendored crates (run `make vendor` to populate; un-ignore if vendoring into repo)
+/vendor/crates/
+

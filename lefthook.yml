@@ -1,0 +1,58 @@
+# Conventional Commits + gitleaks + formatting/sorting + affected-crate cargo checks.
+# Skip all hooks with LEFTHOOK=0.
+commit-msg:
+  commands:
+    conventional:
+      # git's own merge and revert subjects are allowed: merge commits are the
+      # branch model (specs/0003), and they must not need a hook bypass.
+      run: |
+        subj=$(head -n 1 {1})
+        case "$subj" in
+          Merge\ *|Revert\ *) ;;
+          *)
+            if [ $(printf '%s' "$subj" | wc -m) -gt 72 ]; then
+              echo "commit-msg error: subject line exceeds 72 characters" >&2
+              exit 1
+            fi
+            ;;
+        esac
+        echo "$subj" | grep -qE '^((feat|fix|perf|refactor|docs|test|ci|build|infra|security|style|chore)(\([a-zA-Z0-9_.-]+\))?!?: .+|Merge .+|Revert ".+")' \
+          || { echo "commit-msg error: must follow Conventional Commits: <type>(scope): <desc>" >&2; exit 1; }
+
+
+pre-commit:
+  parallel: true
+  commands:
+    rustfmt:
+      glob: "*.rs"
+      run: cargo fmt --all -- --check
+    cargo-sort:
+      glob: "*Cargo.toml"
+      run: |
+        if command -v cargo-sort >/dev/null 2>&1; then
+          cargo sort --check --workspace
+        fi
+    typos:
+      run: |
+        if command -v typos >/dev/null 2>&1; then
+          typos
+        fi
+    gitleaks:
+      # `cmd || echo` would swallow a real finding (gitleaks exits non-zero on a
+      # leak). Only a MISSING binary is tolerated; a leak blocks the commit.
+      run: |
+        if command -v gitleaks >/dev/null 2>&1; then
+          gitleaks protect --staged --redact --no-banner
+        else
+          echo "gitleaks not installed - CI will enforce"
+        fi
+    affected-tests:
+      run: ./scripts/lefthook-affected-cargo.sh --staged test
+
+pre-push:
+  commands:
+    affected-clippy:
+      run: ./scripts/lefthook-affected-cargo.sh --push clippy
+    affected-tests:
+      run: ./scripts/lefthook-affected-cargo.sh --push test
+

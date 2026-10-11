@@ -1,0 +1,100 @@
+# Release binaries: build, package, attest and upload the workspace binaries to
+# a GitHub release. Spec: specs/0005 (release flow).
+#
+# A tag or release created with GITHUB_TOKEN triggers no other workflow. So this
+# file has no `on: push: tags` or `on: release` trigger. release.yml calls it
+# (workflow_call) after release-plz creates a release. A person can also run it
+# by hand (workflow_dispatch) to build again for an existing tag.
+name: release-binaries
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag, for example v0.1.0
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag, for example v0.1.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-binaries-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  binaries:
+    name: binaries (${{ matrix.target }})
+    # GitHub-hosted runner. The self-hosted ci-rust image has a read-only
+    # RUSTUP_HOME and cannot add a target.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write # gh release upload
+      id-token: write # build provenance (Sigstore)
+      attestations: write # build provenance
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64-unknown-linux-musl, aarch64-unknown-linux-musl]
+    steps:
+      - name: Check the tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.+-]*)?$ ]] || { echo "bad tag: $TAG" >&2; exit 1; }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          persist-credentials: false
+      # The packaging script comes from the commit that runs this workflow, not
+      # from the tag. A tag made before scripts/dist.sh existed (v0.1.0) can then
+      # still be built by hand.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: .release-tools
+          sparse-checkout: scripts/dist.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      # rustup is on the runner. Read the channel from rust-toolchain.toml, so
+      # the pin lives in one place. No third-party toolchain action is needed.
+      - name: Install the toolchain and the target
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          channel="$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)"
+          [ -n "$channel" ] || { echo "no channel in rust-toolchain.toml" >&2; exit 1; }
+          rustup toolchain install "$channel" --profile minimal --target "$TARGET" --no-self-update
+          rustup show active-toolchain
+      # cargo-zigbuild uses zig as the C linker, so one x86_64 runner builds both
+      # musl targets. The ziglang wheel is pinned by version (same zig as the
+      # estate toolchain); cargo-zigbuild finds it as `python3 -m ziglang`.
+      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
+        with:
+          tool: cargo-zigbuild
+      - name: Install zig
+        run: python3 -m pip install --user 'ziglang==0.15.2'
+      - name: Build and package
+        env:
+          DIST_BUILDER: zigbuild
+          DIST_JOBS: "4"
+          TARGET: ${{ matrix.target }}
+          TAG: ${{ inputs.tag }}
+        run: bash .release-tools/scripts/dist.sh --target "$TARGET" --tag "$TAG"
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/SHA256SUMS-*
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: gh release upload "$TAG" dist/*.tar.gz dist/SHA256SUMS-* --clobber
