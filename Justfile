@@ -1,4 +1,4 @@
-# Justfile for rust-monorepo-template
+# Justfile for kd
 # Standard command runner for Rust workspaces.
 # Shared workstations keep jobs=2 to avoid CPU starvation. CI passes jobs=10.
 
@@ -125,13 +125,13 @@ vendor-check:
 
 # Build CLI, verify version string, and prove domain crate has zero I/O
 smoke:
-    cargo build -p skel-cli --locked -j {{jobs}}
-    @out="$$(cargo run -q -p skel-cli --locked -j {{jobs}} -- --version)"; \
+    cargo build -p kd --locked -j {{jobs}}
+    @out="$$(cargo run -q -p kd --locked -j {{jobs}} -- --version)"; \
     echo "$$out"; \
-    [[ "$$out" =~ ^skel\ [0-9]+\.[0-9]+\.[0-9]+\ \(.+\)$$ ]] || { echo "smoke: unexpected --version output" >&2; exit 1; }; \
-    cargo run -q -p skel-cli --locked -j {{jobs}} -- demo | grep -q '"done"' || { echo "smoke: demo did not reach done" >&2; exit 1; }; \
-    if grep -rnE 'std::net|std::fs|tokio|std::process' crates/skel-domain/src; then \
-        echo "smoke: skel-domain must not use I/O" >&2; \
+    [[ "$$out" =~ ^kd\ [0-9]+\.[0-9]+\.[0-9]+\ \(.+\)$$ ]] || { echo "smoke: unexpected --version output" >&2; exit 1; }; \
+    cargo run -q -p kd --locked -j {{jobs}} -- demo | grep -q '"done"' || { echo "smoke: demo did not reach done" >&2; exit 1; }; \
+    if grep -rnE 'std::net|std::fs|tokio|std::process' crates/kd-domain/src; then \
+        echo "smoke: kd-domain must not use I/O" >&2; \
         exit 1; \
     fi; \
     echo "smoke: ok"

@@ -1,0 +1,36 @@
+[package]
+name = "kd"
+description = "Signal coordination, process supervision, graceful teardown, and terminal hygiene framework."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+name = "kd"
+path = "src/lib.rs"
+
+[[bin]]
+name = "kd"
+path = "src/bin/kd.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true }
+kd-domain = { path = "../kd-domain" }
+libc = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+undocumented_unsafe_blocks = "warn"

@@ -1,6 +1,6 @@
 [package]
-name = "skel-cli"
-description = "Command line interface for skel."
+name = "kd-domain"
+description = "Domain model for kd. Pure logic, zero I/O."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,18 +9,12 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 
-[[bin]]
-name = "skel"
-path = "src/main.rs"
-
 [dependencies]
-anyhow = { workspace = true }
-clap = { workspace = true }
 serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
 serde_json = { workspace = true }
-skel-domain = { path = "../skel-domain" }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
 
 [lints]
 workspace = true

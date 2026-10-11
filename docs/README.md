@@ -4,7 +4,7 @@
 > We document architecture, mechanical boundaries, and operational runbooks
 > because memory fades and bare-metal nodes do not negotiate.
 
-This index maps the documentation surface for `rust-monorepo-template`.
+This index maps the documentation surface for `kd`.
 
 | Section | Scope & Content |
 |---|---|

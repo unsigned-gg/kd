@@ -1,4 +1,4 @@
-# AGENTS.md - rust-monorepo-template
+# AGENTS.md - kd
 
 > The single source of operational truth for people and autonomous agents.
 > Rules are stated once, enforced by gates, and respected by machines.
@@ -17,16 +17,16 @@ Software is fastest when it aligns with the hardware beneath it:
 
 | Path | Role | Machine Sympathy & Boundary Rule |
 |---|---|---|
-| `crates/skel-domain` | Core Domain | **Zero I/O.** Pure mathematical entities, finite states, and repository traits. No filesystem, no sockets, no background threads, no async runtimes. Computes in pure memory. |
-| `crates/skel-cli` | Host Adapter | The untrusted boundary. Parses CLI arguments (`clap`), handles standard streams, configures tracing, and invokes domain logic. |
+| `crates/kd-domain` | Core Domain | **Zero I/O.** Pure mathematical entities, signal numbers, and graceful shutdown finite state machines. No filesystem, no sockets, no background threads, no async runtimes. Computes in pure memory. |
+| `crates/kd` | Systems Library & CLI | The systems boundary. Implements `pidfd_open`/`pidfd_send_signal`, `PR_SET_CHILD_SUBREAPER`, non-blocking zombie reaping, negative PGID kill (`kill(-pgid, sig)`), 2-phase teardown, and RAII `TerminalGuard`. |
 | `xtask/` | Task Automation | Native Rust tooling (`spec-check`, `toolchain-check`, `pin-check`, `fetch-contracts`). Replaces fragile shell scripts with type-checked automation. |
 | `specs/` | LeanSpec Registry | Formal architecture contracts. If a design cannot be written clearly, it cannot be compiled cleanly. |
 | `vendor/leanspec/` | Specification Method | Vendored LeanSpec methodology (MIT). Untouched, unedited. |
 | `.agents/skills/` | Agent Capabilities | Directed workflows for autonomous contributors. |
 | `.claude/` | Harness Integration | Claude Code settings, permissions, and pre-execution hooks. |
 
-**The Zero-I/O Invariant:** Crates depend strictly downward. `skel-cli` calls
-`skel-domain`. `skel-domain` calls nobody. If `skel-domain` ever imports
+**The Zero-I/O Invariant:** Crates depend strictly downward. `kd` calls
+`kd-domain`. `kd-domain` calls nobody. If `kd-domain` ever imports
 `std::net`, `std::fs`, `tokio`, or `std::process`, `make smoke` immediately
 terminates the build. Domain logic belongs in memory; I/O belongs at the gate.
 

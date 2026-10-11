@@ -10,20 +10,11 @@ depends_on: [0001-template-architecture]
 
 ## Overview
 
-This spec sets the licence of the template and the rules for external code.
+This spec sets the licence of `kd` and the rules for external code.
 
-The template is proprietary. `[workspace.package]` sets
-`license = "LicenseRef-Proprietary"`. The copyright holder is Christian M.
-Todie / cerebral.work. Contact: chris@todie.io. Cortex drifted from this rule
-with `license = "MIT"` beside a proprietary LICENSE, measured 2026-10-08.
-
-Facts from 2026-10-08:
-
-- `cerebral-work/pgt` is private. It has no licence file. Head is `54d90f5`.
-  It uses edition 2024, so the workspace `rust-version` floor is 1.85.
-- `autonice` is GPL-2.0. `zerostack` is GPL-3.0. Both are copyleft.
-- `0xPlaygrounds/rig` is MIT, version 0.44.0.
-- All eight research evaluations in `cerebral-work/research` are drafts.
+`kd` is open-source and dual-licensed. `[workspace.package]` sets
+`license = "Apache-2.0 OR MIT"`. The copyright holder is Christian M.
+Todie / unsigned-gg. Contact: chris@todie.io.
 
 ## Design
 
@@ -31,8 +22,7 @@ Facts from 2026-10-08:
 
 - Copyleft is denied. `deny.toml` uses the cargo-deny v2 schema, which has no
   `deny` list. A licence passes only when it is in `allow`. No GPL, AGPL or
-  LGPL licence is in `allow`, so all of them fail. The two named cases are
-  autonice and zerostack.
+  LGPL licence is in `allow`, so all of them fail.
 - `cargo deny check` runs in `make check` and in the CI job `cargo-deny`.
 - A new licence needs an operator decision before it enters the allow list.
 
@@ -40,10 +30,21 @@ Facts from 2026-10-08:
 
 - Every external dependency is pinned and recorded before first use.
 - Each `[workspace.dependencies]` entry has a comment that says why.
-- `[sources]` uses `unknown-git = "deny"`. `allow-git` lists one source:
-  `https://github.com/cerebral-work/pgt`.
-- A research evaluation is a draft until someone sets `approved_by`. A draft
-  does not justify a dependency.
+- `make pin-check` (`cargo xtask pin-check`) validates that the table below matches `Cargo.lock`.
+
+### Pinned dependencies
+
+| Crate | Version | Licence | Use | Pin |
+|---|---|---|---|---|
+| `anyhow` | 1.0.104 | MIT OR Apache-2.0 | Context-carrying errors in binaries and xtask. | Cargo.lock |
+| `clap` | 4.6.7 | MIT OR Apache-2.0 | Command-line argument parsing for the CLI. | Cargo.lock |
+| `libc` | 0.2.190 | MIT OR Apache-2.0 | POSIX and Linux syscalls for pidfd, prctl, and termios. | Cargo.lock |
+| `serde` | 1.0.229 | MIT OR Apache-2.0 | Serialization and deserialization derive. | Cargo.lock |
+| `serde_json` | 1.0.151 | MIT OR Apache-2.0 | Structured JSON output for CLI and tests. | Cargo.lock |
+| `sha2` | 0.10.9 | MIT OR Apache-2.0 | Cryptographic hash for contract pinning and xtask. | Cargo.lock |
+| `thiserror` | 2.0.21 | MIT OR Apache-2.0 | Typed domain error enums. | Cargo.lock |
+| `tracing` | 0.1.44 | MIT | Structured logging facade. | Cargo.lock |
+| `tracing-subscriber` | 0.3.23 | MIT | Log formatting and RUST_LOG filtering. | Cargo.lock |
 
 ### pgt
 

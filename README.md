@@ -1,35 +1,21 @@
-# rust-monorepo-template
+# kd
 
-> Cold-forged Rust monorepo scaffold with strict machine sympathy, zero-cost
-> boundaries, and zero patience for web-scale bloat.
+> Modern signal handling, process lifecycle, supervisor, and terminal hygiene framework in Rust.
+> Dual-licensed Apache-2.0 OR MIT.
 
-Computers run on silicon, voltage, and memory barriers. They do not run on
-optimism, vibes, or 400-crate dependency trees designed to pad a byte slice.
+Computers run on silicon, voltage, and memory barriers. Signal handling and process
+teardown require absolute rigor to prevent PID recycling races, avoid leaked zombies,
+and protect operator terminals from stuck raw modes.
 
-This repository is the canonical template for Rust services and tooling across
-the unsigned estate. It compiles fast, enforces uncompromising architecture
-discipline, and builds itself before it lets you write a single bug.
+`kd` provides Linux and POSIX lifecycle primitives for containerized agent workloads,
+subreapers, command runners, and terminal multiplexers:
 
----
-
-## The Philosophy: Respect the Metal
-
-1. **Host Throttling (`-j 2`):** Silicon is shared. The Makefile locks
-   compilations to `-j 2` by default. Thrashing all CPU cores to expand a macro
-   tree while starving your desktop is poor manners. CI gets the full pipe; your
-   workstation stays responsive.
-2. **The Zero-I/O Domain (`crates/skel-domain`):** Pure logic lives isolated
-   from the kernel. No sockets, no disk reads, no surprise async runtimes.
-   Adapters handle the real world; domain logic stays testable in nanoseconds.
-   `make smoke` verifies no I/O imports pollute the domain.
-3. **Evidence Tiers Over Vibes:** We do not say "tests pass." We run
-   `make check` and quote the exit code. If a command cannot reproduce a claim,
-   the claim does not exist.
-4. **Paranoid Supply Chain:** `wildcards = "deny"` in `deny.toml`. Multi-target
-   license verification across Linux, macOS, and Windows. We like knowing what
-   instructions run on our bare metal.
-5. **Signed Heritage:** Every commit is cryptographically signed. No squashing.
-   Clean, linear history where every transition is tracked.
+- **Linux pidfd**: `PidFd` opens stable process descriptors to eliminate PID recycling races.
+- **Child subreaper**: `set_child_subreaper` catches and adopts orphaned grandchild processes.
+- **Zombie reaping**: Non-blocking `reap_zombies` cleans up terminated children.
+- **PGID broadcast signaling**: Atomic negative-PGID kills (`kill(-pgid, sig)`).
+- **Graceful 2-phase teardown**: `TeardownCoordinator` drives Drain → Escalate → ForceKill.
+- **Terminal hygiene**: RAII `TerminalGuard` restores raw mode and cursor on drop or panic.
 
 ---
 
@@ -37,8 +23,8 @@ discipline, and builds itself before it lets you write a single bug.
 
 | Component | Path | Responsibility |
 |---|---|---|
-| **Domain Core** | `crates/skel-domain` | Pure entities, finite-state transitions, repository ports. Zero I/O. |
-| **CLI Adapter** | `crates/skel-cli` | Argument parsing via `clap`, structured logging, stderr/stdout hygiene. |
+| **Domain Core** | `crates/kd-domain` | Pure signals, finite-state shutdown transitions, process status. Zero I/O. |
+| **Systems Library & CLI** | `crates/kd` | Linux pidfd, subreaper, negative PGID kill, zombie harvest, 2-phase teardown, and RAII terminal hygiene. |
 | **Repo Automation** | `xtask/` | Clean Rust automation (`spec-check`, `toolchain-check`, `pin-check`, `fetch-contracts`). No sloppy bash loops. |
 | **Specifications** | `specs/` | LeanSpec registry. Architecture changes start as specs, not impromptu PRs. |
 | **Quality Gates** | `Justfile`, `Makefile` | Modern `Justfile` with awk-parsing POSIX `Makefile` wrapper. Run `make help` or `just --list`. |
@@ -58,7 +44,7 @@ discipline, and builds itself before it lets you write a single bug.
 
 ### Option 2: cargo-generate
 ```bash
-cargo generate --git git@github.com:cerebral-work/rust-monorepo-template.git --name <name>
+cargo generate --git git@github.com:unsigned-gg/kd.git --name <name>
 cd <name>
 git add -A && git commit -S -m "chore: initial commit from template"
 make new-repo NAME=<name>

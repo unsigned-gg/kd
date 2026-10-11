@@ -1,4 +1,4 @@
-# Makefile for rust-monorepo-template
+# Makefile for kd
 # Standard POSIX wrapper that awk-parses recipes directly from Justfile.
 SHELL := bash
 .SHELLFLAGS := -euo pipefail -c
@@ -135,83 +135,3 @@ $(TARGETS):
 		awk -v target="$*" -v jobs="$(JOBS)" -v nextest_profile="$(NEXTEST_PROFILE)" -v org="$(ORG)" "$$AWK_PARSER" Justfile | $(SHELL); \
 	fi
 
-# >>> template-only: `make new-repo` deletes this block (new-repo, template-check).
-##@ Template
-
-new-repo: ## Rename the template (NAME=<kebab> [REPO=<repo-name>] [ORG=cerebral-work])
-	name="$(NAME)"
-	# REPO is the GitHub repo name. It defaults to NAME, the crate prefix.
-	# They differ when the repo is, for example, cas-substrate with cas-* crates.
-	repo="$(or $(REPO),$(NAME))"
-	org="$(ORG)"
-	[[ "$$name" =~ ^[a-z][a-z0-9-]*$$ ]] || { echo "usage: make new-repo NAME=<kebab-name> [REPO=<repo-name>] [ORG=cerebral-work]" >&2; exit 2; }
-	[[ "$$repo" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$$ ]] || { echo "new-repo: bad REPO" >&2; exit 2; }
-	[[ "$$org" =~ ^[A-Za-z0-9][A-Za-z0-9-]*$$ ]] || { echo "new-repo: bad ORG" >&2; exit 2; }
-	if [ -n "$$(git status --porcelain)" ]; then
-		echo "new-repo: the working tree is not clean" >&2
-		exit 1
-	fi
-	snake="$${name//-/_}"
-	upper="$${snake^^}"
-	git mv crates/skel-domain "crates/$$name-domain"
-	git mv crates/skel-cli "crates/$$name-cli"
-	git ls-files -z | while IFS= read -r -d '' f; do
-		# vendor/ is upstream text; the new-repo skill stays verbatim as the
-		# record of how this repo was made from the template.
-		case "$$f" in vendor/*|Cargo.lock|.agents/skills/new-repo/*) continue ;; esac
-		[ -f "$$f" ] || continue
-		grep -Iq . "$$f" || continue
-		# The bare token is matched on word boundaries so that a word which
-		# merely contains it is never rewritten.
-		sed -i \
-			-e "s#cerebral-work/rust-monorepo-template#$$org/$$repo#g" \
-			-e "s#rust-monorepo-template#$$repo#g" \
-			-e "s/SKEL_/$${upper}_/g" \
-			-e "s/skel_/$${snake}_/g" \
-			-e "s/\bskel\b/$$name/g" \
-			"$$f"
-	done
-	git rm -q -f --ignore-unmatch .github/workflows/template-check.yml
-	# The template-only targets have no use in the new repo. Delete them, so
-	# `make help` lists only real targets. The recipe already runs, so this is safe.
-	sed -i -e '/^# >>> template-only/,/^# <<< template-only/d' -e 's/ new-repo template-check$$//' Makefile
-	cargo update -w --offline 2>/dev/null || cargo update -w
-	# The rename changes crate names, and rustfmt sorts imports by name, so a
-	# name that sorts before `clap` (for example `cas`) leaves misordered imports.
-	cargo fmt --all
-	git status --short
-
-template-check: ## Run check, spec-check, smoke, then prove the rename in a temp copy
-	$(MAKE) check spec-check smoke
-	tmp="$$(mktemp -d)"
-	trap 'rm -rf "$$tmp"' EXIT
-	git ls-files -z | tar --null -T - -cf - | tar -xf - -C "$$tmp"
-	export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
-	export GIT_AUTHOR_NAME=probe GIT_AUTHOR_EMAIL=probe@example.invalid
-	export GIT_COMMITTER_NAME=probe GIT_COMMITTER_EMAIL=probe@example.invalid
-	export CARGO_TARGET_DIR="$(CURDIR)/target/probe"
-	cd "$$tmp"
-	git init -q -b development
-	git add -A
-	git commit -q -m probe
-	# `aaa-probe` sorts before every dependency name, so the rename moves the
-	# domain import to the top of the CLI's import block; fmt-check proves that
-	# new-repo reformats it (measured 2026-10-08: NAME=cas failed fmt-check).
-	# REPO differs from NAME, so the probe also proves that links follow the
-	# repo name (measured 2026-10-08: NAME=cas wrote cerebral-work/cas, but the
-	# repo was cas-substrate).
-	$(MAKE) -f Makefile new-repo NAME=aaa-probe REPO=aaa-probe-repo
-	cargo fmt --all --check
-	grep -q 'cerebral-work/aaa-probe-repo"' Cargo.toml || { echo "template-check: Cargo.toml repository does not use REPO" >&2; exit 1; }
-	if grep -qE '^(new-repo|template-check):' Makefile; then
-		echo "template-check: template-only targets left in the Makefile" >&2
-		exit 1
-	fi
-	cargo build --workspace -j $(JOBS)
-	$(MAKE) -f Makefile spec-check
-	if grep -rIn -E '\bskel\b|skel_|SKEL_' --exclude-dir={target,.git,vendor} . | grep -v '^\./\.agents/skills/new-repo/'; then
-		echo "template-check: leftover 'skel' after rename" >&2
-		exit 1
-	fi
-	echo "template-check: ok"
-# <<< template-only
