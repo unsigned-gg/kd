@@ -1,5 +1,7 @@
 # kd
 
+[![License: Apache-2.0 OR MIT](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](https://github.com/unsigned-gg/.github)
+
 > Modern signal handling, process lifecycle, supervisor, and terminal hygiene framework in Rust.
 > Dual-licensed Apache-2.0 OR MIT.
 
@@ -61,4 +63,8 @@ licenses pass on your host. Inspect the diff before pushing.
 - **Architecture Specs:** Browse [specs/README.md](specs/README.md).
 - **Contributing:** Read [CONTRIBUTING.md](CONTRIBUTING.md).
 - **All Targets:** Run `make help`.
+
+## Principles
+
+See the [unsigned-gg principles](https://github.com/unsigned-gg/.github) for the architectural doctrine and community standards.
 
