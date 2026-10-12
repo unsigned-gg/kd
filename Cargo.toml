@@ -31,7 +31,7 @@ serde = { version = "1", features = ["derive"] }
 # JSON output for the CLI.
 serde_json = "1"
 # Cryptographic hash for contract pinning and xtask.
-sha2 = "0.10"
+sha2 = "0.11"
 # Typed error enums in library crates.
 thiserror = "2"
 # Structured logging facade.
