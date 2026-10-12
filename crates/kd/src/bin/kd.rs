@@ -1,5 +1,6 @@
 //! Command-line interface for `kd` (process supervision and signal coordination).
 
+use std::os::unix::process::CommandExt;
 use std::process::{Command as StdCommand, ExitCode};
 
 use anyhow::{Context, Result};
@@ -29,7 +30,7 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Demonstrate 2-phase graceful shutdown (Drain → Escalate → ForceKill) and emit JSON status.
+    /// Demonstrate 2-phase graceful shutdown (Drain -> Escalate -> ForceKill) and emit JSON status.
     Demo {
         /// Identifier for the demo workload run.
         #[arg(long, default_value = "default-demo")]
@@ -59,6 +60,17 @@ enum Command {
         /// Inbound drain timeout in milliseconds upon receiving SIGTERM.
         #[arg(long, default_value = "10000")]
         drain_ms: u64,
+
+        /// Escalation timeout in milliseconds before force killing.
+        #[arg(long, default_value = "5000")]
+        escalate_ms: u64,
+
+        /// Optional command to execute as the primary supervised workload.
+        command: Option<String>,
+
+        /// Arguments passed to the primary command.
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
     },
 
     /// List all recognized POSIX signals and their integer numbers and categories.
@@ -137,8 +149,10 @@ fn run_supervised(
     let _ = set_child_subreaper(true);
     let receiver = trap_default_termination().context("failed to trap termination signals")?;
 
-    let child = StdCommand::new(command)
-        .args(args)
+    let mut cmd = StdCommand::new(command);
+    cmd.args(args);
+    cmd.process_group(0);
+    let child = cmd
         .spawn()
         .with_context(|| format!("failed to spawn {command}"))?;
 
@@ -160,21 +174,46 @@ fn run_supervised(
     Ok(ExitCode::from(exit_code as u8))
 }
 
-fn run_init(drain_ms: u64) -> Result<ExitCode> {
+fn run_init(
+    drain_ms: u64,
+    escalate_ms: u64,
+    command: Option<String>,
+    args: &[String],
+) -> Result<ExitCode> {
     let _guard = TerminalGuard::init().context("failed to initialize terminal guard")?;
     let _ = set_child_subreaper(true);
     let receiver = trap_default_termination().context("failed to trap termination signals")?;
 
     let config = ShutdownConfig {
         drain_grace_period_ms: drain_ms,
-        escalate_timeout_ms: 5000,
+        escalate_timeout_ms: escalate_ms,
         force_kill_timeout_ms: 2000,
         default_exit_code: 0,
         double_sigint_fast_track: true,
     };
 
     let mut coordinator = TeardownCoordinator::new(config);
-    tracing::info!("kd init container supervisor active (PID 1 mode)");
+
+    if let Some(ref cmd_name) = command {
+        let mut cmd = StdCommand::new(cmd_name);
+        cmd.args(args);
+        cmd.process_group(0);
+        let child = cmd
+            .spawn()
+            .with_context(|| format!("failed to spawn {cmd_name}"))?;
+
+        let pid = ProcessId::new(child.id());
+        let pgid = ProcessGroupId::new(child.id());
+        coordinator.track_process(ProcessRecord::new(pid, pgid, cmd_name, true));
+
+        tracing::info!(
+            command = %cmd_name,
+            pid = %pid,
+            "kd init container supervisor active (PID 1 mode with primary workload)"
+        );
+    } else {
+        tracing::info!("kd init container supervisor active (PID 1 orphan-reaper mode)");
+    }
 
     let exit_code = coordinator.run_loop(&receiver);
     Ok(ExitCode::from(exit_code as u8))
@@ -199,7 +238,12 @@ fn main() -> Result<ExitCode> {
             command,
             args,
         } => run_supervised(&command, &args, drain_ms, escalate_ms),
-        Command::Init { drain_ms } => run_init(drain_ms),
+        Command::Init {
+            drain_ms,
+            escalate_ms,
+            command,
+            args,
+        } => run_init(drain_ms, escalate_ms, command, &args),
         Command::Signals => {
             let signals = [
                 Signal::Hup,

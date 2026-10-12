@@ -7,6 +7,7 @@ use std::fs;
 use std::io;
 use std::os::unix::io::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 use std::path::Path;
+use std::time::Duration;
 
 use kd_domain::{ExitStatus, ProcessGroupId, ProcessId, Signal};
 
@@ -108,6 +109,58 @@ impl PidFd {
             Err(io::Error::new(
                 io::ErrorKind::Unsupported,
                 "pidfd_send_signal is only supported on Linux",
+            ))
+        }
+    }
+
+    /// Wait for process termination with an optional timeout using Linux `poll(2)`.
+    ///
+    /// On Linux >= 5.3, a process file descriptor becomes readable (`POLLIN`)
+    /// when the monitored process terminates.
+    ///
+    /// Returns `Ok(true)` if process exited, `Ok(false)` on timeout, or `Err(io::Error)` on failure.
+    ///
+    /// # Errors
+    /// Returns `io::Error` if `poll(2)` fails, or `ErrorKind::Unsupported` on platforms
+    /// without pidfd support.
+    pub fn wait_timeout(&self, timeout: Option<Duration>) -> io::Result<bool> {
+        #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+        {
+            let timeout_ms = match timeout {
+                Some(dur) => dur.as_millis().min(libc::c_int::MAX as u128) as libc::c_int,
+                None => -1,
+            };
+
+            let mut pfd = libc::pollfd {
+                fd: self.fd.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            };
+
+            // SAFETY: Calling poll on valid descriptor owned by Self.
+            #[allow(unsafe_code)]
+            let ret = unsafe { libc::poll(&mut pfd, 1, timeout_ms) };
+
+            if ret < 0 {
+                let err = io::Error::last_os_error();
+                if err.kind() == io::ErrorKind::Interrupted {
+                    Ok(false)
+                } else {
+                    Err(err)
+                }
+            } else if ret == 0 {
+                Ok(false)
+            } else {
+                Ok((pfd.revents & (libc::POLLIN | libc::POLLHUP | libc::POLLERR)) != 0)
+            }
+        }
+
+        #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+        {
+            let _ = timeout;
+            Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "pidfd_wait is only supported on Linux",
             ))
         }
     }
@@ -292,5 +345,25 @@ mod tests {
         if let Ok(pidfd) = PidFd::open(ProcessId::new(my_pid)) {
             assert_eq!(pidfd.pid().as_u32(), my_pid);
         }
+    }
+
+    #[test]
+    fn test_pidfd_wait_timeout_on_child() {
+        use std::process::Command;
+
+        let mut child = Command::new("sleep")
+            .arg("0.05")
+            .spawn()
+            .expect("spawn sleep");
+        let pid = ProcessId::new(child.id());
+
+        if let Ok(pidfd) = PidFd::open(pid) {
+            let exited = pidfd
+                .wait_timeout(Some(Duration::from_secs(1)))
+                .expect("poll wait");
+            assert!(exited, "process should have exited within timeout");
+        }
+
+        let _ = child.wait();
     }
 }
