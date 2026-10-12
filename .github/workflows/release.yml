@@ -25,7 +25,7 @@ concurrency:
 jobs:
   release:
     name: release
-    runs-on: {group: ent-default, labels: [ci-rust]}
+    runs-on: ci-rust
     timeout-minutes: 20
     permissions:
       contents: write

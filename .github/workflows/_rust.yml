@@ -30,7 +30,7 @@ permissions:
 jobs:
   cargo:
     name: cargo
-    runs-on: {group: ent-default, labels: [ci-rust]}
+    runs-on: ci-rust
     timeout-minutes: 45
     env:
       CARGO_TERM_COLOR: always

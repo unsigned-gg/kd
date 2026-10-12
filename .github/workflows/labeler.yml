@@ -12,7 +12,7 @@ jobs:
   label:
     name: labeler
     if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: {group: ent-default, labels: [self-hosted]}
+    runs-on: ci-rust
     timeout-minutes: 5
     permissions:
       contents: read
