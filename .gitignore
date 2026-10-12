@@ -14,6 +14,9 @@
 .blackwall/
 .sbx/
 
+# Agent lane persona (installed per session; not tracked)
+.agents/persona.md
+
 # Vendored crates (run `make vendor` to populate; un-ignore if vendoring into repo)
 /vendor/crates/
 

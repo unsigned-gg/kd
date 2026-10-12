@@ -23,9 +23,14 @@ Not probed yet.
 ## CI and runners
 
 Known from the repo contract (2026-10-08):
-- CI runs on the `ci-rust` runner label in runner group `ent-default`.
-- The runner image is `ci-rust-runner:v0.1.6`. It bakes Rust 1.94.1.
-- Spec 0005 (`specs/0005-ci-cache-and-runners.md`) is the source for runner lanes and caches.
+- Spec 0005 (`specs/0005-ci-cache-and-runners.md`) specifies runner lanes and caches.
+
+Measured from workflow inspection (2026-10-12):
+- `.github/workflows/ci.yml` runs on GitHub-hosted `ubuntu-latest` runners.
+- Toolchains managed via `dtolnay/rust-toolchain@stable` with `rustfmt` and `clippy`.
+- Caching powered by `Swatinem/rust-cache@v2`.
+- Active CI jobs: `fmt & clippy`, `test & doc-test`, `smoke (zero-i/o domain invariant)`, `spec-check`, `labeler`.
+- Host throttling invariant: Cargo operations in Makefile and CI execute with `-j 2` to preserve host resources.
 
 Not probed yet: live runner capacity, cache hit rates, the R2 sccache bucket.
 
