@@ -30,7 +30,7 @@ permissions:
 jobs:
   cargo:
     name: cargo
-    runs-on: ci-rust
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
       CARGO_TERM_COLOR: always
