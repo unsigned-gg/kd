@@ -41,7 +41,7 @@ Todie / unsigned-gg. Contact: chris@todie.io.
 | `libc` | 0.2.190 | MIT OR Apache-2.0 | POSIX and Linux syscalls for pidfd, prctl, and termios. | Cargo.lock |
 | `serde` | 1.0.229 | MIT OR Apache-2.0 | Serialization and deserialization derive. | Cargo.lock |
 | `serde_json` | 1.0.151 | MIT OR Apache-2.0 | Structured JSON output for CLI and tests. | Cargo.lock |
-| `sha2` | 0.10.9 | MIT OR Apache-2.0 | Cryptographic hash for contract pinning and xtask. | Cargo.lock |
+| `sha2` | 0.11.0 | MIT OR Apache-2.0 | Cryptographic hash for contract pinning and xtask. | Cargo.lock |
 | `thiserror` | 2.0.21 | MIT OR Apache-2.0 | Typed domain error enums. | Cargo.lock |
 | `tracing` | 0.1.44 | MIT | Structured logging facade. | Cargo.lock |
 | `tracing-subscriber` | 0.3.23 | MIT | Log formatting and RUST_LOG filtering. | Cargo.lock |

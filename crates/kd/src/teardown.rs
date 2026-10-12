@@ -10,8 +10,8 @@ use std::os::unix::net::UnixDatagram;
 use std::time::{Duration, Instant};
 
 use kd_domain::{
-    ChildState, ProcessGroupId, ProcessId, ProcessRecord, ShutdownAction, ShutdownConfig,
-    ShutdownPhase, ShutdownStateMachine, Signal,
+    ChildState, ExitStatus, ProcessGroupId, ProcessId, ProcessRecord, ShutdownAction,
+    ShutdownConfig, ShutdownPhase, ShutdownStateMachine, Signal,
 };
 
 use crate::signal::SignalReceiver;
@@ -92,13 +92,37 @@ impl TeardownCoordinator {
             self.execute_action(action);
 
             // 4. Check if all tracked processes have terminated
+            let all_dead = !self.tracked_processes.is_empty()
+                && self
+                    .tracked_processes
+                    .values()
+                    .all(|p| p.state.is_terminated());
+            if all_dead {
+                let action = self.state_machine.mark_all_reaped();
+                self.execute_action(action);
+            }
+        } else if !self.tracked_processes.is_empty() {
+            // Check if tracked processes exited during normal running
             let all_dead = self
                 .tracked_processes
                 .values()
                 .all(|p| p.state.is_terminated());
             if all_dead {
-                let action = self.state_machine.mark_all_reaped();
-                self.execute_action(action);
+                let exit_code = self
+                    .tracked_processes
+                    .values()
+                    .filter_map(|p| match p.state {
+                        ChildState::Terminated(ExitStatus::Success) => Some(0),
+                        ChildState::Terminated(ExitStatus::Exited(code)) => Some(code),
+                        ChildState::Terminated(
+                            ExitStatus::Signaled(sig) | ExitStatus::CoreDumped(sig),
+                        ) => Some(128 + sig.as_raw()),
+                        _ => None,
+                    })
+                    .next()
+                    .unwrap_or(self.state_machine.config().default_exit_code);
+
+                let _ = self.state_machine.force_terminate(exit_code);
             }
         }
 
@@ -137,6 +161,20 @@ impl TeardownCoordinator {
             } => {
                 tracing::info!(grace_period_ms, reason = %reason, "initiating graceful shutdown drain");
                 let _ = notify_systemd("STOPPING=1");
+
+                // Forward the graceful drain signal to all supervised processes
+                let drain_sig = match Signal::from_name(&reason) {
+                    Ok(sig) if sig.can_catch() => sig,
+                    _ => Signal::Term,
+                };
+                for &pgid in &self.tracked_groups {
+                    let _ = kill_process_group(pgid, drain_sig);
+                }
+                for record in self.tracked_processes.values() {
+                    if record.state.is_running() {
+                        let _ = send_signal_safe(record.pid, drain_sig);
+                    }
+                }
             }
             ShutdownAction::EnterEscalate { timeout_ms } => {
                 tracing::warn!(
@@ -167,5 +205,60 @@ impl TeardownCoordinator {
                 tracing::info!(exit_code, "all supervised processes terminated cleanly");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_coordinator_normal_termination_exit_code() {
+        let config = ShutdownConfig {
+            drain_grace_period_ms: 1000,
+            escalate_timeout_ms: 500,
+            force_kill_timeout_ms: 200,
+            default_exit_code: 0,
+            double_sigint_fast_track: true,
+        };
+        let mut coordinator = TeardownCoordinator::new(config);
+        let pid = ProcessId::new(99999);
+        let pgid = ProcessGroupId::new(99999);
+        let mut record = ProcessRecord::new(pid, pgid, "test-proc", true);
+        // Simulate child already terminated with exit code 42
+        record.state = ChildState::Terminated(ExitStatus::Exited(42));
+        coordinator.track_process(record);
+
+        // First step should detect process termination and complete with code 42
+        let exit_code = coordinator.step(None, Duration::from_millis(10));
+        assert_eq!(exit_code, Some(42));
+        assert_eq!(
+            *coordinator.phase(),
+            ShutdownPhase::Terminated { exit_code: 42 }
+        );
+    }
+
+    #[test]
+    fn test_coordinator_drain_signal_forwarding() {
+        let config = ShutdownConfig {
+            drain_grace_period_ms: 1000,
+            escalate_timeout_ms: 500,
+            force_kill_timeout_ms: 200,
+            default_exit_code: 0,
+            double_sigint_fast_track: true,
+        };
+        let mut coordinator = TeardownCoordinator::new(config);
+        // Process with dummy PID
+        let pid = ProcessId::new(99998);
+        let pgid = ProcessGroupId::new(99998);
+        let record = ProcessRecord::new(pid, pgid, "test-drain-proc", true);
+        coordinator.track_process(record);
+
+        // Action: EnterDrain with SIGINT
+        coordinator.execute_action(ShutdownAction::EnterDrain {
+            grace_period_ms: 1000,
+            reason: "Int".to_owned(),
+        });
+        // Non-existent PID/PGID won't crash execute_action (idempotent / ESRCH handled)
     }
 }
