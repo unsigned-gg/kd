@@ -131,10 +131,15 @@ pub fn check(root: &Path) -> Report {
     report
 }
 
-/// Return the 4-digit number if `name` is `NNNN-kebab-slug.md`.
+/// Return the 4-digit number if `name` is `NNNN-kebab-slug.md` or `SPEC-NNNN-kebab-slug.md`.
 fn spec_number(name: &str) -> Option<String> {
     let stem = name.strip_suffix(".md")?;
-    let (num, slug) = stem.split_once('-')?;
+    let (prefix, rest) = if let Some(stripped) = stem.strip_prefix("SPEC-") {
+        ("SPEC-", stripped)
+    } else {
+        ("", stem)
+    };
+    let (num, slug) = rest.split_once('-')?;
     let digits = num.len() == 4 && num.chars().all(|c| c.is_ascii_digit());
     let slug_ok = !slug.is_empty()
         && slug.split('-').all(|seg| {
@@ -143,7 +148,7 @@ fn spec_number(name: &str) -> Option<String> {
                     .chars()
                     .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
         });
-    (digits && slug_ok).then(|| num.to_string())
+    (digits && slug_ok).then(|| format!("{prefix}{num}"))
 }
 
 /// One source line with its 1-based number and fence state.

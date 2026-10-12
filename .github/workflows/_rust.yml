@@ -9,17 +9,16 @@
 #   so this workflow never installs a toolchain (a toolchain action would fail).
 # - pods are ephemeral with no volumes: the only cross-job caches are the
 #   Actions cache (rust-cache) and, when configured, sccache on Cloudflare R2.
-# - pod CPU limit is 10, so CI passes JOBS=10 (the workstation default is 2;
-#   specs/0002 records the exception).
+# - pod CPU throttling enforces JOBS=2 (aligned with host and open source CI).
 name: rust (reusable)
 
 on:
   workflow_call:
     inputs:
       jobs:
-        description: "Cargo build jobs (make JOBS=). The ci-rust pod CPU limit is 10."
+        description: "Cargo build jobs (make JOBS=)."
         type: number
-        default: 10
+        default: 2
       nextest-profile:
         description: "nextest profile (see .config/nextest.toml)."
         type: string

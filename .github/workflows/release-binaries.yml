@@ -84,7 +84,7 @@ jobs:
       - name: Build and package
         env:
           DIST_BUILDER: zigbuild
-          DIST_JOBS: "4"
+          DIST_JOBS: "2"
           TARGET: ${{ matrix.target }}
           TAG: ${{ inputs.tag }}
         run: bash .release-tools/scripts/dist.sh --target "$TARGET" --tag "$TAG"

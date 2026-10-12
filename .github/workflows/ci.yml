@@ -48,7 +48,7 @@ jobs:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     uses: ./.github/workflows/_rust.yml
     with:
-      jobs: 10
+      jobs: 2
       nextest-profile: ci
     secrets: inherit
 
@@ -82,9 +82,9 @@ jobs:
           tool: cargo-machete
       - name: install cargo-sort
         run: |
-          command -v cargo-sort >/dev/null 2>&1 || cargo install cargo-sort --locked -j 10
+          command -v cargo-sort >/dev/null 2>&1 || cargo install cargo-sort --locked -j 2
       - name: make hygiene (typos, sort, machete, spec-check, toolchain-check)
-        run: make hygiene JOBS=10
+        run: make hygiene JOBS=2
 
   features:
     name: features
@@ -101,7 +101,7 @@ jobs:
         with:
           tool: cargo-hack
       - name: make powerset
-        run: make powerset JOBS=10
+        run: make powerset JOBS=2
 
   semver:
     name: semver

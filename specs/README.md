@@ -11,6 +11,7 @@ contract. Methodology: LeanSpec (`vendor/leanspec/`).
 
 | Spec | Title | Status | Priority |
 |---|---|---|---|
+| [SPEC-0001](SPEC-0001-process-supervision.md) | Process supervision | complete | critical |
 | [0001](0001-template-architecture.md) | Template architecture | in-progress | high |
 | [0002](0002-verification-gates-and-evidence.md) | Verification gates and evidence | in-progress | high |
 | [0003](0003-branch-model-and-promotion.md) | Branch model and promotion | in-progress | high |

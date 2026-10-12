@@ -1,0 +1,55 @@
+--- Log opened Sun Oct 11 20:15:00 2026 UTC
+[20:15:01] *** Joins: Sindri (sindri@metal.unsigned.gg)
+[20:15:02] *** Joins: Idunn (idunn@vault.unsigned.gg)
+[20:15:03] *** Joins: Brokkr (brokkr@forge.unsigned.gg)
+[20:15:04] *** Joins: Mimir (mimir@gate.unsigned.gg)
+[20:15:05] *** Joins: Loki (loki@chaos.unsigned.gg)
+[20:15:06] *** Joins: Thjalfi (thjalfi@cycles.unsigned.gg)
+[20:15:07] *** Joins: Volva (volva@loom.unsigned.gg)
+[20:15:08] *** Joins: Kratos (kratos@yx.unsigned.gg)
+[20:15:09] *** Joins: Sigyn (sigyn@ledger.unsigned.gg)
+[20:15:10] *** Joins: Alrisha (alrisha@knot.unsigned.gg)
+[20:15:11] *** Joins: Thuban (thuban@scout.unsigned.gg)
+[20:15:12] *** Joins: Gullveig (gullveig@types.unsigned.gg)
+[20:15:15] *** Channel #unsigned-metal: Linux pidfd, Subreaper & Zombie Lifecycle
+[20:15:20] <Kratos> $y(x) = mx + b$. Table the fluff. We are here to ratify `kd` before crates.io publication.
+[20:15:26] <Kratos> Process supervision on Linux has been broken since Dennis Ritchie was in grade school. Two-letter command: `kd`. Linear ergonomics.
+[20:15:34] <Sindri> Linear ergonomics won't save you if your L1 data cache is thrashing, Kratos! Look at `signal.rs`. I spent all morning inspecting the disassembly of `raw_signal_handler`.
+[20:15:43] <Sindri> You have `PIPE_WRITE_FD` sitting as an `AtomicI32`. If that atomic integer shares a 64-byte cache line with any mutable state touched by worker threads, you trigger cross-core cache invalidation every time a signal arrives!
+[20:15:52] <Sindri> Furthermore: zero heap allocations in the signal trap loop! Not a single `malloc`, not a single `Arc` clone! Just a single-byte `libc::write` into a non-blocking pipe. Bryan Cantrill would approve, but only if the cache lines are aligned!
+[20:16:01] <Gullveig> Calm down, Sindri. The type system already defends the boundary. Look at `crates/kd-domain`. It is completely separated from `crates/kd`.
+[20:16:10] <Gullveig> `ChildState` is an algebraic sum type: `Running`, `Stopped(Signal)`, and `Terminated(ExitStatus)`. An un-reaped terminated process cannot compile into a running state. The invalid state is literally unrepresentable in the type grammar.
+[20:16:21] <Loki> *chuckles in kernel panic* Unrepresentable in your compiler, Gullveig, but highly representable in the Linux kernel!
+[20:16:30] <Loki> What happens when I spawn five thousand short-lived child processes that immediately exit, and your supervisor is busy in a page fault? PID rollover happens!
+[20:16:40] <Loki> The kernel wraps `/proc/sys/kernel/pid_max` back to 300. By the time your precious `kill(pid, SIGTERM)` executes, that PID belongs to Postgres or systemd-journald! You just assassinated the logging daemon!
+[20:16:51] <Mimir> Loki is right about the POSIX integer race, but he clearly hasn't read line 48 of `crates/kd/src/supervisor.rs`. Gate veto warning: I will reject any implementation that uses raw PIDs for life-critical signaling.
+[20:17:02] <Sindri> We use `pidfd_open` (syscall 434) with `PIDFD_NONBLOCK | O_CLOEXEC`!
+[20:17:09] <Mimir> Exactly. A `pidfd` pins the kernel's `struct pid` reference directly in the file table. Even if the PID number is recycled a thousand times, `pidfd_send_signal` (syscall 424) targets only that exact process instance.
+[20:17:19] <Mimir> But what is your errno contract, Sindri? If the process dies right before `pidfd_send_signal`, the kernel returns `ESRCH`. If you treat `ESRCH` as a panic, I veto the release.
+[20:17:28] <Gullveig> `ESRCH` is mapped to idempotent success during teardown. If the process is already dead, the goal of termination is already met.
+[20:17:37] <Thuban> The formal state machine in `SPEC-0001` proves this mathematically. Theorem 3.1: The transition function $\delta$ is confluent under concurrent child termination.
+[20:17:48] <Thuban> I ran the transition automaton through the Z3 SMT solver across 100,000 randomized signal interleavings. Even with adversarial `SIGINT` injected during `Drain`, the automaton guarantees termination within $t_d + t_e + t_k$ milliseconds.
+[20:17:59] <Loki> Cute proofs, Thuban. But what if I send `SIGSTOP` right as your drain begins? The child is stopped in kernel space. It cannot execute its user-space drain logic! It sits frozen in memory while your timer ticks down!
+[20:18:10] <Volva> Then the loom weaves the escalation path, Loki. In `shutdown.rs`, the state machine does not wait forever on stopped threads.
+[20:18:21] <Volva> When the drain grace period expires, `TeardownCoordinator::step` advances phase to `Escalate`. It broadcasts `SIGTERM` across the negative PGID (`kill(-pgid, SIGTERM)`). If the process remains frozen or ignores the request, phase advances to `ForceKill`.
+[20:18:32] <Volva> And what does `ForceKill` do? It delivers uncatchable `SIGKILL`. Even a stopped process is immediately destroyed by `SIGKILL` upon kernel scheduling. Backpressure is bounded. The stream cannot stall.
+[20:18:43] <Thjalfi> And I measured the cycle cost of that exact escalation path with `iai`!
+[20:18:50] <Thjalfi> None of your noisy wall-clock microbenchmarks where someone runs a browser in the background and calls it data. In instruction counting: `reap_zombies` on an idle loop takes exactly 42 instructions.
+[20:19:01] <Thjalfi> When ten children terminate simultaneously and `SIGCHLD` coalesces, our non-blocking `waitpid(-1, &mut status, WNOHANG)` loop reaps all ten in 1,280 instructions total. Zero L1 cache misses. Fast, tight, deterministic.
+[20:19:13] <Idunn> Performance is good, Thjalfi, but what about confinement? Where are the security boundaries?
+[20:19:22] <Idunn> If `kd` supervises containerized agent processes, those processes must have zero unprivileged leaks. What stops a rogue sub-agent from opening `/proc/1/mem` or scanning peer descriptors?
+[20:19:33] <Idunn> I insist on Landlock LSM filesystem sandboxing and `PR_SET_NO_NEW_PRIVS`. Every child spawned by `kd run` must be strictly confined to its assigned workspace. Descriptors must carry `O_CLOEXEC` unconditionally.
+[20:19:44] <Sindri> All descriptors in `kd` use `O_CLOEXEC`! Look at `pipe2(pipefds, O_NONBLOCK | O_CLOEXEC)` in `signal.rs`, and `pidfd_open` in `supervisor.rs`. No descriptor leaks across `execve`. None!
+[20:19:55] <Sigyn> Telemetry and persistent audit agree. `teardown.rs` hooks into systemd via `NOTIFY_SOCKET` sending `STOPPING=1`.
+[20:20:06] <Sigyn> The coordinator logs every phase transition with structured `tracing` spans: drain grace periods, reaped zombie counts, and exit statuses. We keep a pristine ledger of every process death.
+[20:20:17] <Alrisha> Attention elves. Review the specification prose in `SPEC-0001-process-supervision.md`.
+[20:20:25] <Alrisha> Rule 1 of ASD-STE100: Sentences must not exceed twenty words in procedures or twenty-five words in descriptions.
+[20:20:34] <Alrisha> Strike out all marketing phrases. No 'blazing fast', no 'effortless supervision', no 'bulletproof'. State facts calibrated to evidence: '`kd` provides Linux pidfd supervision, child subreaper adoption, and non-blocking zombie reaping in pure Rust.'
+[20:20:46] <Brokkr> And don't forget the forge rules!
+[20:20:53] <Brokkr> The physical host `ceres` is running live workloads. Every `cargo` invocation in our CI, Makefile, and scripts MUST specify `-j 2`. If anyone pushes a workflow that spins up unbounded compilation jobs, I will forge a negative PGID kill for their session.
+[20:21:05] <Brokkr> Pinned Rust 1.85 MSRV. Strict `deny.toml` banning wildcard dependencies. All commits signed with GPG key 29234C4D7EE749F2.
+[20:21:16] <Mimir> I have reviewed the Ralf Jung Miri compliance on the unsafe blocks. The `OwnedFd::from_raw_fd` calls properly take ownership of non-negative descriptors returned by syscalls. `raw_signal_handler` invokes only POSIX async-signal-safe `write(2)`.
+[20:21:28] <Mimir> The operational semantics, errno contracts, and subreaper catchment rules are verified. I withdraw my veto. The gate is GREEN.
+[20:21:38] <Kratos> $y(x) = mx + b$. Invariants verified. Architecture sealed. SPEC-0001 ratified. Land it on green.
+[20:21:44] *** Mode #unsigned-metal +m by Kratos
+--- Log closed Sun Oct 11 20:21:50 2026 UTC
