@@ -90,7 +90,11 @@ The xtask gates sit beside the make and just targets above. Nothing is removed.
   `channel` in `rust-toolchain.toml`, then `toolchain-check` shall fail and
   name both.
 - **XT-6 (ubiquitous):** Each gate shall run from the repository root with
-  `.tools/bin` first on `PATH`. N is `JOBS`, else 2.
+  `.tools/bin` first on `PATH`, and without the variables cargo sets for the
+  xtask binary itself (`CARGO_PKG_*`, `CARGO_MANIFEST_DIR`,
+  `CARGO_MANIFEST_PATH`, `CARGO_CRATE_NAME`, `CARGO_BIN_NAME`,
+  `CARGO_PRIMARY_PACKAGE`). cargo-machete reads `CARGO_PKG_NAME` to tell
+  whether cargo started it. N is `JOBS`, else 2.
 
   | Gate | Runs |
   |---|---|
