@@ -57,14 +57,25 @@ impl Gate {
 
     /// The command name on the `cargo xtask` command line.
     pub fn name(self) -> &'static str {
-        let _ = self;
-        ""
+        match self {
+            Gate::Tools => "tools",
+            Gate::ToolchainCheck => "toolchain-check",
+            Gate::Fmt => "fmt",
+            Gate::FmtCheck => "fmt-check",
+            Gate::Clippy => "clippy",
+            Gate::Test => "test",
+            Gate::DocTest => "doc-test",
+            Gate::Deny => "deny",
+            Gate::Typos => "typos",
+            Gate::Machete => "machete",
+            Gate::Ci => "ci",
+            Gate::Install => "install",
+        }
     }
 
     /// The gate a command-line name selects, if any.
     pub fn parse(name: &str) -> Option<Gate> {
-        let _ = name;
-        None
+        Gate::ALL.into_iter().find(|gate| gate.name() == name)
     }
 }
 
@@ -132,39 +143,115 @@ const LOCKED: bool = true;
 
 /// True when a `--version` output names exactly the pinned version.
 pub fn version_matches(output: &str, pinned: &str) -> bool {
-    let _ = (output, pinned);
-    false
+    output
+        .split_whitespace()
+        .any(|word| word.strip_prefix('v').unwrap_or(word) == pinned)
 }
 
 /// The command line that installs a tool into `<root>/.tools` (XT-3).
 pub fn install_command(tool: &Tool, root: &Path, jobs: &str) -> Vec<String> {
-    let _ = (tool, root, jobs);
-    Vec::new()
+    let tools_root = root.join(".tools").to_string_lossy().into_owned();
+    [
+        "rustup",
+        "run",
+        "--install",
+        TOOLS_RUST,
+        "cargo",
+        "install",
+        "--locked",
+        "--version",
+        tool.version,
+        "--root",
+        &tools_root,
+        "--force",
+        "-j",
+        jobs,
+        tool.krate,
+    ]
+    .iter()
+    .map(|s| (*s).to_string())
+    .collect()
 }
 
 /// `PATH` with `<root>/.tools/bin` first.
 pub fn path_with_tools(root: &Path, path: Option<OsString>) -> OsString {
-    let _ = (root, path);
-    OsString::new()
+    let mut dirs = vec![root.join(".tools").join("bin")];
+    if let Some(path) = path {
+        dirs.extend(std::env::split_paths(&path));
+    }
+    std::env::join_paths(dirs).unwrap_or_default()
+}
+
+/// The variables among `names` that cargo set for the xtask binary itself, which no gate may
+/// inherit (XT-6).
+pub fn package_vars<'a>(names: impl IntoIterator<Item = &'a str>) -> Vec<String> {
+    const EXACT: [&str; 5] = [
+        "CARGO_MANIFEST_DIR",
+        "CARGO_MANIFEST_PATH",
+        "CARGO_CRATE_NAME",
+        "CARGO_BIN_NAME",
+        "CARGO_PRIMARY_PACKAGE",
+    ];
+    names
+        .into_iter()
+        .filter(|name| name.starts_with("CARGO_PKG_") || EXACT.contains(name))
+        .map(str::to_string)
+        .collect()
 }
 
 /// The build job count: `JOBS` when it is set and not empty, else 2 (spec 0002, the `-j` rule).
 pub fn jobs(env_jobs: Option<String>) -> String {
-    let _ = env_jobs;
-    String::new()
+    env_jobs
+        .filter(|jobs| !jobs.trim().is_empty())
+        .unwrap_or_else(|| "2".to_string())
 }
 
 /// The command line a gate runs (XT-6), program first. `nextest` says whether cargo-nextest
 /// is there. `None` for the gates that are not one command.
 pub fn command_line(gate: Gate, jobs: &str, nextest: bool) -> Option<Vec<String>> {
-    let _ = (gate, jobs, nextest);
-    None
+    let locked: &[&str] = if LOCKED { &["--locked"] } else { &[] };
+    let line: Vec<&str> = match gate {
+        Gate::Fmt => vec!["cargo", "fmt", "--all"],
+        Gate::FmtCheck => vec!["cargo", "fmt", "--all", "--", "--check"],
+        Gate::Clippy => [
+            &["cargo", "clippy", "--workspace", "--all-targets"][..],
+            locked,
+            &["-j", jobs, "--", "-D", "warnings"],
+        ]
+        .concat(),
+        Gate::Test if nextest => [
+            &["cargo", "nextest", "run", "--workspace"][..],
+            locked,
+            &["--build-jobs", jobs],
+        ]
+        .concat(),
+        Gate::Test => [&["cargo", "test", "--workspace"][..], locked, &["-j", jobs]].concat(),
+        Gate::DocTest => [
+            &["cargo", "test", "--doc", "--workspace"][..],
+            locked,
+            &["-j", jobs],
+        ]
+        .concat(),
+        Gate::Deny => vec!["cargo", "deny", "check"],
+        Gate::Typos => vec!["typos"],
+        Gate::Machete => vec!["cargo", "machete"],
+        Gate::Tools | Gate::ToolchainCheck | Gate::Ci | Gate::Install => return None,
+    };
+    Some(line.iter().map(|s| (*s).to_string()).collect())
 }
 
 /// The release build `install` runs after `ci` (XT-8).
 pub fn install_build_line(jobs: &str) -> Vec<String> {
-    let _ = jobs;
-    Vec::new()
+    let locked: &[&str] = if LOCKED { &["--locked"] } else { &[] };
+    [
+        &["cargo", "build", "--release"][..],
+        locked,
+        &["--workspace", "--exclude", "xtask", "--bins", "-j", jobs],
+    ]
+    .concat()
+    .iter()
+    .map(|s| (*s).to_string())
+    .collect()
 }
 
 /// How one step of `ci` ended.
@@ -194,14 +281,50 @@ pub fn run_steps<F>(steps: &[Gate], run: F) -> Vec<StepResult>
 where
     F: FnMut(Gate) -> Result<(), String>,
 {
-    let _ = (steps, run);
-    Vec::new()
+    let mut run = run;
+    let mut failed = false;
+    steps
+        .iter()
+        .map(|&gate| {
+            if failed {
+                return StepResult {
+                    gate,
+                    outcome: Outcome::NotRun,
+                    secs: None,
+                };
+            }
+            let start = Instant::now();
+            let outcome = match run(gate) {
+                Ok(()) => Outcome::Passed,
+                Err(why) => {
+                    failed = true;
+                    Outcome::Failed(why)
+                }
+            };
+            StepResult {
+                gate,
+                outcome,
+                secs: Some(start.elapsed().as_secs_f64()),
+            }
+        })
+        .collect()
 }
 
 /// The summary line for one step (XT-7).
 pub fn summary_line(label: &str, result: &StepResult) -> String {
-    let _ = (label, result);
-    String::new()
+    let head = format!("{label}: {:<15}", result.gate.name());
+    let secs = result
+        .secs
+        .map(|s| format!(" {s:>6.1}s"))
+        .unwrap_or_default();
+    match &result.outcome {
+        Outcome::Passed => format!("{head} {:<6}{secs}", "ok"),
+        Outcome::Failed(why) => {
+            let why = why.lines().next().unwrap_or("");
+            format!("{head} {:<6}{secs}  {why}", "FAILED")
+        }
+        Outcome::NotRun => format!("{head} not run"),
+    }
 }
 
 /// What a gate needs at run time.
@@ -220,12 +343,19 @@ impl Ctx {
         }
     }
 
-    /// A command that runs from the root with `.tools/bin` first on `PATH`.
+    /// A command that runs from the root with `.tools/bin` first on `PATH`, without the
+    /// xtask binary's own package variables (XT-6).
     fn command(&self, line: &[String]) -> Command {
         let mut cmd = Command::new(&line[0]);
         cmd.args(&line[1..])
             .current_dir(&self.root)
             .env("PATH", &self.path);
+        let names: Vec<String> = std::env::vars_os()
+            .filter_map(|(name, _)| name.into_string().ok())
+            .collect();
+        for name in package_vars(names.iter().map(String::as_str)) {
+            cmd.env_remove(name);
+        }
         cmd
     }
 
@@ -262,8 +392,10 @@ fn tools(ctx: &Ctx) -> Result<(), String> {
                 continue;
             }
             Some(found) => println!(
-                "tools: {} reports `{found}`, installing {}",
-                tool.krate, tool.version
+                "tools: {} reports `{}`, installing {}",
+                tool.krate,
+                found.lines().next().unwrap_or(""),
+                tool.version
             ),
             None => println!("tools: {} missing, installing {}", tool.krate, tool.version),
         }
@@ -276,7 +408,10 @@ fn tools(ctx: &Ctx) -> Result<(), String> {
                 return Err(format!(
                     "{} still reports `{}` after installing {}; another copy is ahead of .tools/bin",
                     tool.krate,
-                    found.unwrap_or_else(|| "nothing".to_string()),
+                    found
+                        .as_deref()
+                        .and_then(|f| f.lines().next())
+                        .unwrap_or("nothing"),
                     tool.version
                 ));
             }
@@ -471,6 +606,39 @@ mod tests {
         assert_eq!(
             std::env::split_paths(&path).collect::<Vec<_>>(),
             [PathBuf::from("/r/.tools/bin")]
+        );
+    }
+
+    #[test]
+    fn xt6_gates_do_not_inherit_the_xtask_package_variables() {
+        let names = [
+            "CARGO",
+            "CARGO_HOME",
+            "CARGO_TARGET_DIR",
+            "CARGO_BUILD_JOBS",
+            "CARGO_PKG_NAME",
+            "CARGO_PKG_VERSION",
+            "CARGO_PKG_AUTHORS",
+            "CARGO_MANIFEST_DIR",
+            "CARGO_MANIFEST_PATH",
+            "CARGO_CRATE_NAME",
+            "CARGO_BIN_NAME",
+            "CARGO_PRIMARY_PACKAGE",
+            "PATH",
+            "RUSTUP_TOOLCHAIN",
+        ];
+        assert_eq!(
+            package_vars(names),
+            strings(&[
+                "CARGO_PKG_NAME",
+                "CARGO_PKG_VERSION",
+                "CARGO_PKG_AUTHORS",
+                "CARGO_MANIFEST_DIR",
+                "CARGO_MANIFEST_PATH",
+                "CARGO_CRATE_NAME",
+                "CARGO_BIN_NAME",
+                "CARGO_PRIMARY_PACKAGE"
+            ])
         );
     }
 
