@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `cargo xtask ci` and `cargo xtask install`, with the gates `tools`, `fmt`, `fmt-check`, `clippy`, `test`, `doc-test`, `deny`, `typos` and `machete` (spec 0002, XT-1 to XT-9), and the CI job `xtask-ci`. The make and just targets stay.
 - Signals framework, process supervision, and terminal hygiene (`unsigned-gg/kd`): Linux `pidfd` lifecycle management (`pidfd_open`, `pidfd_send_signal`), `PR_SET_CHILD_SUBREAPER` zombie adoption and reaping, negative PGID broadcast signaling, declarative 2-phase graceful shutdown state machine (Drain → Escalate → ForceKill), and RAII `TerminalGuard`. Dual-licensed Apache-2.0 OR MIT.
 - Port the cas-substrate release follow-ups (CER-2670): drop the dead `release` trigger and the never-run `attach` job from `sbom.yml` (a release made with `GITHUB_TOKEN` starts no workflows, so neither ever fired), and set `git_release_name = "v{{ version }}"` in `release-plz.toml` so the GitHub release title matches the tag. Spec 0005 names both behaviors.
 

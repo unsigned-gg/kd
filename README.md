@@ -27,10 +27,24 @@ subreapers, command runners, and terminal multiplexers:
 |---|---|---|
 | **Domain Core** | `crates/kd-domain` | Pure signals, finite-state shutdown transitions, process status. Zero I/O. |
 | **Systems Library & CLI** | `crates/kd` | Linux pidfd, subreaper, negative PGID kill, zombie harvest, 2-phase teardown, and RAII terminal hygiene. |
-| **Repo Automation** | `xtask/` | Clean Rust automation (`spec-check`, `toolchain-check`, `pin-check`, `fetch-contracts`). No sloppy bash loops. |
+| **Repo Automation** | `xtask/` | Clean Rust automation (`spec-check`, `toolchain-check`, `pin-check`, `fetch-contracts`, and the gates `ci` and `install`). No sloppy bash loops. |
 | **Specifications** | `specs/` | LeanSpec registry. Architecture changes start as specs, not impromptu PRs. |
 | **Quality Gates** | `Justfile`, `Makefile` | Modern `Justfile` with awk-parsing POSIX `Makefile` wrapper. Run `make help` or `just --list`. |
 | **Tooling & CI** | `.github/`, `deny.toml`, `lefthook.yml`, `contracts.lock` | Strict git hooks, conventional commits, powerset checks, semver guards, contract pinning. |
+
+---
+
+## Build
+
+```bash
+cargo xtask ci        # tools, toolchain-check, fmt-check, clippy, test, doc-test, deny, typos, machete
+cargo xtask install   # ci, then release builds of every binary
+```
+
+`cargo xtask ci` needs only cargo and rustup. rustup installs the Rust that
+`rust-toolchain.toml` pins, and `cargo xtask tools` (the first step of `ci`)
+installs cargo-deny, typos, cargo-machete and cargo-nextest at pinned versions
+into `.tools/`. The steps are in spec 0002. The make and just targets still work.
 
 ---
 
