@@ -81,6 +81,18 @@ Pin it by version and sha256 and record it here.
 The `gh` step is temporary. Remove it when the `ci-rust` image ships `gh`
 (OPS-1636).
 
+`cargo xtask tools` builds the gate tools from crates.io (spec 0002, XT-2 and
+XT-3). The version table lives in `xtask/src/gates.rs`. `cargo install
+--locked` builds each one from its published lock file, and crates.io checks
+every crate's sha256. They go into `.tools/`, which is gitignored.
+
+| Tool | Version | Licence | Use | Pin |
+|---|---|---|---|---|
+| `cargo-deny` | 0.19.9, published 2026-06-15 | MIT OR Apache-2.0 | `cargo xtask deny` | crates.io version, `--locked`. The `ci-rust` image bakes the same version. |
+| `typos-cli` | 1.49.0, published 2026-08-03 | MIT OR Apache-2.0 | `cargo xtask typos` | crates.io version, `--locked`. The `ci-rust` image bakes the same version. |
+| `cargo-machete` | 0.9.1, published 2025-08-15 | MIT | `cargo xtask machete` | crates.io version, `--locked`. |
+| `cargo-nextest` | 0.9.104, published 2025-09-15 | Apache-2.0 OR MIT | `cargo xtask test` | crates.io version, `--locked`. |
+
 ### Vendoring & offline builds
 
 For airgapped environments or offline reproducibility:
