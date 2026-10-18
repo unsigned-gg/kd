@@ -73,7 +73,7 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq length
       # Tag only from main. A manual run on another branch tests the steps above
       # and creates no tag.
-      - uses: release-plz/action@18641b6c63063cc5ff8786ebf69cd57e8541bae1 # v0.5.140
+      - uses: release-plz/action@8921286633dfa0c4020f7f30bd1c14fe19cbb10e # v0.5.142
         id: plz
         if: github.ref == 'refs/heads/main'
         with:
