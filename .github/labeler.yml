@@ -18,8 +18,9 @@ ci:
       - any-glob-to-any-file:
           - '.github/workflows/**'
           - '.github/dependabot.yml'
-          - 'Justfile'
           - 'Makefile'
+          - 'projectfile.yaml'
+          - 'validation.dag.yaml'
           - 'lefthook.yml'
 
 docs:

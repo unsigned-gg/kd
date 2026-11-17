@@ -1,0 +1,79 @@
+$schema: https://projectfile.org/schema/v1.json
+kind: SoftwareSourceCode
+
+identity:
+  namespace: gg.unsigned
+  name: kd
+  version: "0.1.0"
+  title:
+    en: "kd"
+  summary:
+    en: "Signal coordination, process supervision, Linux pidfd lifecycle, graceful two-phase teardown, and RAII terminal hygiene framework in Rust."
+  created: "2026-10-11"
+  modified: "2026-11-16"
+
+repositories:
+  - url: "https://github.com/unsigned-gg/kd.git"
+    type: git
+    branch: main
+    role: origin
+
+links:
+  - type: source-code
+    url: https://github.com/unsigned-gg/kd
+  - type: bugs
+    url: https://github.com/unsigned-gg/kd/issues
+
+license:
+  spdx: Apache-2.0 OR MIT
+  file: LICENSE
+
+copyright:
+  year: 2026
+
+people:
+  - family-names: Todie
+    given-names: Christian M.
+    email: chris@todie.io
+    roles: [founder, author, maintainer, copyright]
+
+organizations:
+  - name: "Unsigned"
+    url: https://github.com/unsigned-gg
+    roles: [funder, copyright, maintainer]
+
+keywords:
+  - pidfd
+  - process-supervision
+  - signals
+  - subreaper
+  - teardown
+  - terminal-hygiene
+  - rust
+
+org.projectfile.ci:
+  nodes:
+    - id: toolchain-check
+      run: "cargo xtask toolchain-check"
+    - id: spec-check
+      depends_on: [toolchain-check]
+      run: "cargo xtask spec-check"
+    - id: pin-check
+      depends_on: [toolchain-check]
+      run: "cargo xtask pin-check"
+    - id: zero-io-domain
+      run: "! grep -rnE 'std::net|std::fs|tokio|std::process' crates/kd-domain/src"
+    - id: fmt
+      depends_on: [toolchain-check]
+      run: "cargo fmt --all -- --check"
+    - id: clippy
+      depends_on: [fmt, spec-check, pin-check, zero-io-domain]
+      run: "cargo clippy --workspace --locked -j 2 --all-targets -- -D warnings"
+    - id: test
+      depends_on: [clippy]
+      run: "cargo test --workspace --locked -j 2"
+    - id: doc-test
+      depends_on: [test]
+      run: "cargo test --doc --workspace --locked -j 2"
+    - id: deny
+      run: "cargo deny check"

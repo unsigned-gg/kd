@@ -1,0 +1,23 @@
+# Yggdrasil pane topologies for unsigned-gg/kd, read by bifrost::yggdrasil.
+
+[topologies.solo]
+slots = [{ role = "brokkr", label = "lead" }]
+splits = []
+
+[topologies.dual-h]
+slots = [
+  { role = "brokkr", label = "lead" },
+  { role = "loki", label = "critic" },
+]
+splits = [{ from = 0, direction = "right", ratio = 0.5, new = 1 }]
+
+[topologies.triad]
+slots = [
+  { role = "brokkr", label = "lead" },
+  { role = "sindri", label = "builder" },
+  { role = "loki", label = "critic" },
+]
+splits = [
+  { from = 0, direction = "right", ratio = 0.5, new = 1 },
+  { from = 1, direction = "down", ratio = 0.5, new = 2 },
+]

@@ -2,6 +2,7 @@
 /.tools/
 .dagr/
 .saga/*
+!.saga/*.toml
 !.saga/flows/
 !.saga/flows/*.toml
 .env*
@@ -10,8 +11,9 @@
 /dist/
 .contracts/
 
-# Agent custody store (local runs; never committed)
+# Agent custody and DAG runner stores (local runs; never committed)
 .blackwall/
+.dagrun/
 .sbx/
 
 # Vendored crates (run `make vendor` to populate; un-ignore if vendoring into repo)

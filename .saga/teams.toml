@@ -1,0 +1,14 @@
+# Saga team archetypes for unsigned-gg/kd, read by bifrost::yggdrasil.
+
+[teams.kd-solo]
+topology = "solo"
+members = [
+  { slot = 0, role = "brokkr", harness = "agy", effort = "high" },
+]
+
+[teams.kd-dual]
+topology = "dual-h"
+members = [
+  { slot = 0, role = "brokkr", harness = "agy", effort = "high" },
+  { slot = 1, role = "loki", harness = "claude", effort = "high" },
+]
