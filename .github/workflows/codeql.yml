@@ -10,8 +10,9 @@
 # CODE_SCANNING=true. It is NOT a required check (specs/0005).
 name: codeql
 
+# Scoped off pull_request (SOP: ci-runner-always-internal) so PRs run 100%
+# self-hosted while CodeQL remains dormant on push/schedule/workflow_dispatch.
 on:
-  pull_request:
   push:
     branches: [development, main]
   schedule:
