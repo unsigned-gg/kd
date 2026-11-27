@@ -31,9 +31,8 @@ concurrency:
 jobs:
   binaries:
     name: binaries (${{ matrix.target }})
-    # GitHub-hosted runner. The self-hosted ci-rust image has a read-only
-    # RUSTUP_HOME and cannot add a target.
-    runs-on: ubuntu-latest
+    # ci-rust-runner:v0.1.13 provides a writable RUSTUP_HOME as uid 1001.
+    runs-on: {group: ent-default, labels: [ci-rust]}  # estate Rust toolchain runner (SOP: ci-runner-always-internal)
     timeout-minutes: 45
     permissions:
       contents: write # gh release upload
@@ -80,7 +79,7 @@ jobs:
         with:
           tool: cargo-zigbuild
       - name: Install zig
-        run: python3 -m pip install --user 'ziglang==0.15.2'
+        run: python3 -m pip install --user --break-system-packages 'ziglang==0.15.2'
       - name: Build and package
         env:
           DIST_BUILDER: zigbuild
